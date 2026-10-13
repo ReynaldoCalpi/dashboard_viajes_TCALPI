@@ -61,7 +61,7 @@ else:
     st.sidebar.info("📌 Mostrando datos de demostración. Sube tu archivo Excel para analizar tu información real.")
     df = cargar_datos_muestra()
 
-# Función de búsqueda dinámica de columnas
+# Búsqueda de columnas
 def buscar_columna(patrones, df_cols, defecto=None):
     for col in df_cols:
         col_clean = str(col).lower().strip()
@@ -82,7 +82,7 @@ col_embarque = buscar_columna(["embarque", "lugar_embarque", "origen_embarque"],
 col_origen = buscar_columna(["origen", "ciudad_origen", "procedencia"], df.columns, "Ciudad Origen")
 col_destino = buscar_columna(["destino", "lugar_destino", "ciudad_destino"], df.columns, "Lugar Destino")
 
-# Limpieza y conversión obligatoria del Flete
+# Limpieza del Flete
 if col_flete and col_flete in df.columns:
     df[col_flete] = (
         df[col_flete]
@@ -100,15 +100,27 @@ if col_fecha and col_fecha in df.columns:
 else:
     df["Año-Mes"] = "Sin Fecha"
 
-# Asegurar columna de Observaciones
+# Asegurar columna Observaciones
 if not col_obs or col_obs not in df.columns:
     df["Observaciones"] = ""
     col_obs = "Observaciones"
 else:
     df[col_obs] = df[col_obs].fillna("")
 
-# Funciones de Exportación a Excel con encabezado idéntico al modelo
+# Función para exportar a Excel
 def generar_excel_reporte_oficial(df_export, titulo_reporte):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_export.to_excel(writer, index=False, sheet_name
+        df_export.to_excel(writer, index=False, sheet_name='Pendientes Facturar', startrow=2)
+        worksheet = writer.sheets['Pendientes Facturar']
+        worksheet['A1'] = titulo_reporte.upper()
+        
+        col_flete_idx = None
+        for idx, col_name in enumerate(df_export.columns, 1):
+            if "flete" in str(col_name).lower() or "valor" in str(col_name).lower():
+                col_flete_idx = idx
+                break
+                
+        if col_flete_idx:
+            for row in range(4, len(df_export) + 4):
+                cell = worksheet.cell(row=row, column=col
