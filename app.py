@@ -23,13 +23,13 @@ def cargar_datos_muestra():
         "Número de Viaje": [f"VJN-{1000 + i}" for i in range(120)],
         "Fecha": pd.date_range(start="2026-01-01", periods=120, freq="D"),
         "Cliente": ["Distribuidora El Sol", "Industrias Lemus", "Comercializadora Alfa", "AgroServicios SV", "Logística Central"] * 24,
-        "Tipo de Viaje": ["Local", "Interurbano", "Internacional", "Local", "Especial"] * 24,
-        "Completado": ["Asignada", "Facturado", "Asignada", "Completado", "Facturado", "Asignada"] * 20,
+        "Tipo Mercancia": ["Granel", "General", "Refrigerada", "Granel", "Especial"] * 24,
+        "Completado": ["ASIGNADO", "FACTURADO", "ASIGNADO", "COMPLETADO", "FACTURADO", "ASIGNADO"] * 20,
         "Motorista": ["Juan Pérez", "Carlos Gómez", "Roberto Rivas", "Mario Cruz", "Ana López"] * 24,
         "Lugar Embarque": ["Bodega Apopa", "Terminal Acajutla", "Depósito Norte", "Planta Soyapango"] * 30,
         "Ciudad Origen": ["San Salvador", "Apopa", "Santa Ana", "San Miguel", "Sonsonate"] * 24,
-        "Ciudad Destino": ["Puerto de Acajutla", "Metapán", "La Libertad", "Ahuachapán", "Usulután"] * 24,
-        "Valor Flete": [350, 420, 500, 280, 600, 450, 380, 520, 310, 490] * 12
+        "Lugar Destino": ["Puerto de Acajutla", "Metapán", "La Libertad", "Ahuachapán", "Usulután"] * 24,
+        "Valor de Flete": [350, 420, 500, 280, 600, 450, 380, 520, 310, 490] * 12
     }
     return pd.DataFrame(data)
 
@@ -59,13 +59,25 @@ def buscar_columna(patrones, df_cols, defecto=None):
 col_num_viaje = buscar_columna(["num", "núm", "numero", "número", "id_viaje", "vjn", "viaje"], df.columns, df.columns[0])
 col_fecha = buscar_columna(["fecha", "date"], df.columns, None)
 col_cliente = buscar_columna(["cliente", "empresa", "razon_social"], df.columns, "Cliente")
-col_tipo_viaje = buscar_columna(["tipo", "tipo_viaje", "servicio"], df.columns, "Tipo de Viaje")
+col_tipo_viaje = buscar_columna(["tipo", "tipo_viaje", "mercancia", "mercancía", "servicio"], df.columns, "Tipo Mercancia")
 col_completado = buscar_columna(["completado", "completo", "estado", "estatus", "status"], df.columns, "Completado")
 col_motorista = buscar_columna(["motorista", "conductor", "chofer"], df.columns, "Motorista")
 col_embarque = buscar_columna(["embarque", "lugar_embarque", "origen_embarque"], df.columns, "Lugar Embarque")
 col_origen = buscar_columna(["origen", "ciudad_origen", "procedencia"], df.columns, "Ciudad Origen")
-col_destino = buscar_columna(["destino", "ciudad_destino"], df.columns, "Ciudad Destino")
+col_destino = buscar_columna(["destino", "lugar_destino", "ciudad_destino"], df.columns, "Lugar Destino")
 col_flete = buscar_columna(["flete", "valor", "monto", "precio", "tarifa"], df.columns, None)
+
+# === CORRECCIÓN DEL ERROR DE SUMA (TypeError) ===
+# Limpieza y conversión obligatoria de la columna de Valor de Flete a número flotante
+if col_flete and col_flete in df.columns:
+    df[col_flete] = (
+        df[col_flete]
+        .astype(str)
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.strip()
+    )
+    df[col_flete] = pd.to_numeric(df[col_flete], errors="coerce").fillna(0.0)
 
 # Normalización de Fechas y Meses
 if col_fecha and col_fecha in df.columns:
@@ -98,13 +110,13 @@ tab_pendientes, tab_dashboard, tab_consulta = st.tabs([
 # ==========================================
 with tab_pendientes:
     st.header("📋 Sección de Viajes Pendientes de Facturar")
-    st.markdown("Filtrado de viajes según la columna **Completado** (Estado **'Asignada'** u otro valor pendiente).")
+    st.markdown("Filtrado de viajes según la columna **Completado** (Estado **'ASIGNADO'** u otro valor pendiente).")
 
     if col_completado in df.columns:
         valores_disponibles = sorted(df[col_completado].dropna().astype(str).unique())
         
-        # Seleccionar valor por defecto que contenga 'asignada' si existe, de lo contrario tomar el primero
-        val_default = [v for v in valores_disponibles if "asignada" in v.lower()]
+        # Seleccionar valor por defecto que contenga 'asignad'
+        val_default = [v for v in valores_disponibles if "asignad" in v.lower()]
         if not val_default:
             val_default = [valores_disponibles[0]] if valores_disponibles else []
 
@@ -139,7 +151,7 @@ with tab_pendientes:
     # Métricas clave de pendientes
     p_kpi1, p_kpi2, p_kpi3 = st.columns(3)
     cant_pendientes = len(df_asignadas)
-    monto_pendiente = df_asignadas[col_flete].sum() if col_flete and col_flete in df_asignadas.columns else 0
+    monto_pendiente = float(df_asignadas[col_flete].sum()) if col_flete and col_flete in df_asignadas.columns else 0.0
     
     p_kpi1.metric("Pendientes de Facturar", f"{cant_pendientes} Viajes")
     p_kpi2.metric("Monto Total Pendiente", f"${monto_pendiente:,.2f}")
@@ -215,8 +227,8 @@ with tab_dashboard:
     # KPIs Dashboard
     d_kpi1, d_kpi2, d_kpi3, d_kpi4 = st.columns(4)
     tot_v = len(df_dash)
-    tot_f = df_dash[col_flete].sum() if col_flete and col_flete in df_dash.columns else 0
-    prom_f = df_dash[col_flete].mean() if col_flete and col_flete in df_dash.columns and tot_v > 0 else 0
+    tot_f = float(df_dash[col_flete].sum()) if col_flete and col_flete in df_dash.columns else 0.0
+    prom_f = float(df_dash[col_flete].mean()) if col_flete and col_flete in df_dash.columns and tot_v > 0 else 0.0
     act_m = df_dash[col_motorista].nunique() if col_motorista in df_dash.columns else 0
 
     d_kpi1.metric("Total Viajes Filtrados", f"{tot_v:,}")
