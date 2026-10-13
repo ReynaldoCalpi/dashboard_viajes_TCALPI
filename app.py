@@ -17,14 +17,14 @@ st.markdown("Carga tu archivo de Excel para gestionar viajes pendientes de factu
 st.sidebar.header("📁 Cargar Archivo")
 uploaded_file = st.sidebar.file_uploader("Selecciona tu archivo (.xlsx, .xls, .csv)", type=["xlsx", "xls", "csv"])
 
-# Datos de muestra mejorados si no se sube un archivo
+# Datos de muestra adaptados
 def cargar_datos_muestra():
     data = {
         "Número de Viaje": [f"VJN-{1000 + i}" for i in range(120)],
         "Fecha": pd.date_range(start="2026-01-01", periods=120, freq="D"),
         "Cliente": ["Distribuidora El Sol", "Industrias Lemus", "Comercializadora Alfa", "AgroServicios SV", "Logística Central"] * 24,
         "Tipo de Viaje": ["Local", "Interurbano", "Internacional", "Local", "Especial"] * 24,
-        "Estado": ["Asignada", "Facturado", "Asignada", "Completado", "Facturado", "Asignada"] * 20,
+        "Completado": ["Asignada", "Facturado", "Asignada", "Completado", "Facturado", "Asignada"] * 20,
         "Motorista": ["Juan Pérez", "Carlos Gómez", "Roberto Rivas", "Mario Cruz", "Ana López"] * 24,
         "Lugar Embarque": ["Bodega Apopa", "Terminal Acajutla", "Depósito Norte", "Planta Soyapango"] * 30,
         "Ciudad Origen": ["San Salvador", "Apopa", "Santa Ana", "San Miguel", "Sonsonate"] * 24,
@@ -60,7 +60,7 @@ col_num_viaje = buscar_columna(["num", "núm", "numero", "número", "id_viaje", 
 col_fecha = buscar_columna(["fecha", "date"], df.columns, None)
 col_cliente = buscar_columna(["cliente", "empresa", "razon_social"], df.columns, "Cliente")
 col_tipo_viaje = buscar_columna(["tipo", "tipo_viaje", "servicio"], df.columns, "Tipo de Viaje")
-col_estado = buscar_columna(["estado", "estatus", "status"], df.columns, "Estado")
+col_completado = buscar_columna(["completado", "completo", "estado", "estatus", "status"], df.columns, "Completado")
 col_motorista = buscar_columna(["motorista", "conductor", "chofer"], df.columns, "Motorista")
 col_embarque = buscar_columna(["embarque", "lugar_embarque", "origen_embarque"], df.columns, "Lugar Embarque")
 col_origen = buscar_columna(["origen", "ciudad_origen", "procedencia"], df.columns, "Ciudad Origen")
@@ -86,7 +86,7 @@ def convert_to_excel(data):
         data.to_excel(writer, index=False, sheet_name='Reporte')
     return output.getvalue()
 
-# Estructura principal por pestañas para mantener el orden
+# Estructura principal por pestañas
 tab_pendientes, tab_dashboard, tab_consulta = st.tabs([
     "📑 Viajes Pendientes de Facturar",
     "📊 Dashboard y Métricas",
@@ -98,14 +98,27 @@ tab_pendientes, tab_dashboard, tab_consulta = st.tabs([
 # ==========================================
 with tab_pendientes:
     st.header("📋 Sección de Viajes Pendientes de Facturar")
-    st.markdown("Filtrado automático de viajes en estado **'Asignada'** para revisión y cobro rápido.")
+    st.markdown("Filtrado de viajes según la columna **Completado** (Estado **'Asignada'** u otro valor pendiente).")
 
-    if col_estado in df.columns:
-        # Filtrar estados que coincidan con 'Asignada'
-        df_asignadas = df[df[col_estado].astype(str).str.strip().str.lower() == "asignada"]
+    if col_completado in df.columns:
+        valores_disponibles = sorted(df[col_completado].dropna().astype(str).unique())
+        
+        # Seleccionar valor por defecto que contenga 'asignada' si existe, de lo contrario tomar el primero
+        val_default = [v for v in valores_disponibles if "asignada" in v.lower()]
+        if not val_default:
+            val_default = [valores_disponibles[0]] if valores_disponibles else []
+
+        filtro_estado = st.multiselect(
+            f"Filtrar por estado en la columna '{col_completado}':",
+            options=valores_disponibles,
+            default=val_default,
+            key="filtro_completado_pendientes"
+        )
+        
+        df_asignadas = df[df[col_completado].astype(str).isin(filtro_estado)] if filtro_estado else df.copy()
     else:
         df_asignadas = pd.DataFrame()
-        st.warning("⚠️ No se encontró la columna de 'Estado' en el archivo cargado.")
+        st.warning("⚠️ No se encontró la columna 'Completado' en el archivo cargado.")
 
     # Filtros adicionales para pendientes
     col_f1, col_f2 = st.columns(2)
@@ -130,13 +143,13 @@ with tab_pendientes:
     
     p_kpi1.metric("Pendientes de Facturar", f"{cant_pendientes} Viajes")
     p_kpi2.metric("Monto Total Pendiente", f"${monto_pendiente:,.2f}")
-    p_kpi3.metric("Estado Filtrado", "Asignada")
+    p_kpi3.metric("Columna Utilizada", f"{col_completado}")
 
-    st.markdown("#### Lista de Viajes Asignados (Requeridos para Facturación)")
+    st.markdown("#### Lista de Viajes Asignados / Pendientes para Facturación")
 
     # Selección explícita de columnas requeridas
     cols_requeridas = [
-        c for c in [col_estado, col_num_viaje, col_fecha, col_cliente, col_tipo_viaje, col_flete, col_motorista, col_embarque, col_origen, col_destino]
+        c for c in [col_completado, col_num_viaje, col_fecha, col_cliente, col_tipo_viaje, col_flete, col_motorista, col_embarque, col_origen, col_destino]
         if c and c in df_asignadas.columns
     ]
 
@@ -161,7 +174,7 @@ with tab_pendientes:
             key="down_p_csv"
         )
     else:
-        st.info("ℹ️ No se encontraron viajes con estado 'Asignada' en el reporte o filtros seleccionados.")
+        st.info("ℹ️ No se encontraron viajes para los filtros seleccionados.")
 
 # ==========================================
 # PESTAÑA 2: DASHBOARD Y MÉTRICAS GENERALES
@@ -169,7 +182,6 @@ with tab_pendientes:
 with tab_dashboard:
     st.header("📊 Dashboard Estadístico General")
 
-    # Filtros globales para el dashboard
     st.subheader("🔍 Filtros para Métricas")
     f_c1, f_c2, f_c3 = st.columns(3)
     
@@ -185,9 +197,9 @@ with tab_dashboard:
             sel_motos_d = []
 
     with f_c3:
-        if col_estado in df.columns:
-            est_disp = sorted(df[col_estado].dropna().astype(str).unique())
-            sel_est_d = st.multiselect("Seleccionar Estado:", est_disp, default=est_disp, key="dash_est")
+        if col_completado in df.columns:
+            est_disp = sorted(df[col_completado].dropna().astype(str).unique())
+            sel_est_d = st.multiselect("Seleccionar Estatus (Completado):", est_disp, default=est_disp, key="dash_est")
         else:
             sel_est_d = []
 
@@ -197,8 +209,8 @@ with tab_dashboard:
         df_dash = df_dash[df_dash["Año-Mes"].isin(sel_meses_d)]
     if sel_motos_d and col_motorista in df_dash.columns:
         df_dash = df_dash[df_dash[col_motorista].astype(str).isin(sel_motos_d)]
-    if sel_est_d and col_estado in df_dash.columns:
-        df_dash = df_dash[df_dash[col_estado].astype(str).isin(sel_est_d)]
+    if sel_est_d and col_completado in df_dash.columns:
+        df_dash = df_dash[df_dash[col_completado].astype(str).isin(sel_est_d)]
 
     # KPIs Dashboard
     d_kpi1, d_kpi2, d_kpi3, d_kpi4 = st.columns(4)
