@@ -107,7 +107,7 @@ if not col_obs or col_obs not in df.columns:
 else:
     df[col_obs] = df[col_obs].fillna("")
 
-# Función para exportar a Excel
+# Función corregida y sin errores de sintaxis para exportar a Excel
 def generar_excel_reporte_oficial(df_export, titulo_reporte):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -123,4 +123,4 @@ def generar_excel_reporte_oficial(df_export, titulo_reporte):
                 
         if col_flete_idx:
             for row in range(4, len(df_export) + 4):
-                cell = worksheet.cell(row=row, column=col
+                cell = worksheet.cell(row=row,
