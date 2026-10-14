@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🚚 Dashboard de Control de Viajes y Fletes - Transportes Calpi")
+st.title("🚚 Dashboard de Control de Viajes y Fletes Pendientes de Facturar - Transportes Calpi")
 st.markdown("Análisis oficial de indicadores, filtrado flexible por estado, mes, motorista y ruta.")
 
 # Carga de archivo
