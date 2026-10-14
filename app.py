@@ -17,6 +17,13 @@ st.markdown("Análisis oficial de indicadores, filtrado flexible por estado, mes
 st.sidebar.header("📁 Archivo de Excel")
 uploaded_file = st.sidebar.file_uploader("Sube tu archivo de Excel", type=["xlsx", "xls", "csv"])
 
+# Diccionario para convertir números de mes a nombres en español
+nombres_meses = {
+    "01": "Enero", "02": "Febrero", "03": "Marzo", "04": "Abril",
+    "05": "Mayo", "06": "Junio", "07": "Julio", "08": "Agosto",
+    "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
+}
+
 # Función para cargar datos por defecto o el archivo subido
 @st.cache_data
 def cargar_datos(file):
@@ -48,7 +55,7 @@ def cargar_datos(file):
                 "MERCANTIL DE COMERCIO DE EL SALVADOR, S.A.", 
                 "MOLINOS MODERNOS, S.A."
             ],
-            "Fecha": pd.date_range(start="2026-08-24", periods=10, freq="D"),
+            "Fecha": pd.date_range(start="2026-01-15", periods=10, freq="ME"),
             "Valor de Flete": [0, 950.00, 1650.00, 1650.00, 700.00, 700.00, 1203.75, 205.00, 1458.00, 827.50],
             "Motorista": ["Juan Pérez", "Carlos Gómez", "Roberto Rivas", "Mario Cruz", "Ana López"] * 2,
             "Tipo Viaje": ["VIAJE LOCAL", "VIAJE INTERNACIONAL"] * 5
@@ -74,12 +81,21 @@ col_flete = next((c for c in df.columns if "flete" in str(c).lower() or "valor" 
 col_motorista = next((c for c in df.columns if "motorista" in str(c).lower() or "conductor" in str(c).lower()), "Motorista")
 col_tipoviaje = next((c for c in df.columns if "tipo viaje" in str(c).lower()), "Tipo Viaje")
 
-# Procesamiento de fechas y meses
+# Procesamiento de fechas y conversión a formato legible en español (ej. "Enero 2026")
 if col_fecha in df.columns:
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors="coerce")
-    df["Año-Mes"] = df[col_fecha].dt.to_period("M").astype(str)
+    
+    def formatear_mes_espanol(dt):
+        if pd.isna(dt):
+            return "Sin Fecha"
+        anio = dt.strftime("%Y")
+        num_mes = dt.strftime("%m")
+        nombre_mes = nombres_meses.get(num_mes, num_mes)
+        return f"{nombre_mes} {anio}"
+
+    df["Mes-Anio"] = df[col_fecha].apply(formatear_mes_espanol)
 else:
-    df["Año-Mes"] = "Sin Fecha"
+    df["Mes-Anio"] = "Sin Fecha"
 
 # Limpieza de la columna de flete a formato numérico
 if col_flete in df.columns:
@@ -102,8 +118,8 @@ if col_estado in df.columns:
 else:
     selected_estados = []
 
-# 2. Filtro por Mes (con opción general)
-meses = sorted([str(x) for x in df["Año-Mes"].dropna().unique()])
+# 2. Filtro por Mes con nombres en español (con opción general)
+meses = sorted([str(x) for x in df["Mes-Anio"].dropna().unique()])
 st.sidebar.markdown("---")
 st.sidebar.subheader("📅 Filtro por Mes")
 todos_meses = st.sidebar.checkbox("Seleccionar Todos los Meses", value=True)
@@ -133,7 +149,7 @@ if col_estado in df.columns and selected_estados:
     df_filtered = df_filtered[df_filtered[col_estado].astype(str).isin(selected_estados)]
 
 if selected_meses:
-    df_filtered = df_filtered[df_filtered["Año-Mes"].isin(selected_meses)]
+    df_filtered = df_filtered[df_filtered["Mes-Anio"].isin(selected_meses)]
 
 if col_motorista in df.columns and selected_motoristas:
     df_filtered = df_filtered[df_filtered[col_motorista].astype(str).isin(selected_motoristas)]
@@ -160,11 +176,11 @@ col_g1, col_g2 = st.columns(2)
 
 with col_g1:
     if col_flete in df_filtered.columns:
-        resumen_mes = df_filtered.groupby("Año-Mes")[col_flete].sum().reset_index()
+        resumen_mes = df_filtered.groupby("Mes-Anio")[col_flete].sum().reset_index()
         fig_mes = px.bar(
-            resumen_mes, x="Año-Mes", y=col_flete,
+            resumen_mes, x="Mes-Anio", y=col_flete,
             text_auto="$.2s", title="<b>Flete Total por Mes</b>",
-            labels={col_flete: "Monto Flete ($)", "Año-Mes": "Mes"},
+            labels={col_flete: "Monto Flete ($)", "Mes-Anio": "Mes"},
             color_discrete_sequence=["#1f77b4"]
         )
         st.plotly_chart(fig_mes, use_container_width=True)
@@ -184,7 +200,9 @@ st.markdown("---")
 
 # --- REPORTE DETALLADO ---
 st.markdown("### 📋 Reporte Detallado de Viajes")
-st.dataframe(df_filtered, use_container_width=True)
+# Ocultamos la columna temporal de soporte "Mes-Anio" para que la tabla conserve el aspecto original limpio
+columnas_mostrar = [c for c in df_filtered.columns if c != "Mes-Anio"]
+st.dataframe(df_filtered[columnas_mostrar], use_container_width=True)
 
 # --- DESCARGAS ---
 @st.cache_data
@@ -201,14 +219,14 @@ def convert_to_excel(data):
 c_down1, c_down2 = st.columns(2)
 c_down1.download_button(
     label="📥 Descargar Reporte en CSV",
-    data=convert_to_csv(df_filtered),
+    data=convert_to_csv(df_filtered[columnas_mostrar]),
     file_name="reporte_viajes_calpi.csv",
     mime="text/csv"
 )
 
 c_down2.download_button(
     label="📥 Descargar Reporte en Excel (.xlsx)",
-    data=convert_to_excel(df_filtered),
+    data=convert_to_excel(df_filtered[columnas_mostrar]),
     file_name="reporte_viajes_calpi.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
