@@ -36,8 +36,15 @@ def cargar_datos(file):
                 return pd.read_csv(file)
             else:
                 xls = pd.ExcelFile(file)
-                sheet_name = '1' if '1' in xls.sheet_names else xls.sheet_names[0]
-                return pd.read_excel(file, sheet_name=sheet_name)
+                # Si existe la hoja '2' (resumen estructurado), la priorizamos por limpieza, si no usamos '1'
+                sheet_name = '2' if '2' in xls.sheet_names else ('1' if '1' in xls.sheet_names else xls.sheet_names[0])
+                
+                if sheet_name == '2':
+                    # La hoja 2 tiene un encabezado en la fila 3 (índice 3)
+                    temp_df = pd.read_excel(file, sheet_name=sheet_name, header=3)
+                    return temp_df
+                else:
+                    return pd.read_excel(file, sheet_name=sheet_name)
         except Exception as e:
             st.error(f"Error al leer el archivo: {e}")
             return None
@@ -76,12 +83,24 @@ if uploaded_file is None:
 else:
     st.sidebar.success("¡Archivo cargado con éxito!")
 
-# Normalización de nombres de columnas exactas
+# Normalización inteligente de nombres de columnas
 col_viaje = next((c for c in df.columns if "viaje" in str(c).lower() and "tipo" not in str(c).lower()), df.columns[0])
 col_estado = next((c for c in df.columns if "completado" in str(c).lower() or "estado" in str(c).lower()), "Completado")
 col_cliente = next((c for c in df.columns if "cliente" in str(c).lower()), "Cliente")
 col_fecha = next((c for c in df.columns if "fecha" in str(c).lower() and "descarga" not in str(c).lower()), "Fecha")
-col_flete = next((c for c in df.columns if "flete" in str(c).lower() or "valor" in str(c).lower()), "Valor de Flete")
+
+# Búsqueda robusta de la columna de flete (evita textos como 'No Aplica' o 'PROPIO')
+col_flete = None
+for c in df.columns:
+    if any(k in str(c).lower() for k in ["flete", "valor", "monto", "total"]):
+        # Verificamos que tenga valores numéricos predominantes
+        serie_num = pd.to_numeric(df[c].astype(str).str.replace("$", "", regex=False).str.replace(",", "", regex=False), errors="coerce")
+        if serie_num.dropna().count() > 0:
+            col_flete = c
+            break
+if not col_flete:
+    col_flete = df.columns[-1] # Por defecto la última columna si es numérica
+
 col_observaciones = next((c for c in df.columns if "observacion" in str(c).lower()), "Observaciones")
 col_motorista = next((c for c in df.columns if "motorista" in str(c).lower() or "conductor" in str(c).lower()), "Motorista")
 col_tipoviaje = next((c for c in df.columns if "tipo viaje" in str(c).lower()), "Tipo Viaje")
@@ -102,7 +121,7 @@ if col_fecha in df.columns:
 else:
     df["Mes-Anio"] = "Sin Fecha"
 
-# Limpieza de la columna de flete a formato numérico
+# Limpieza estricta de la columna de flete a formato numérico real
 if col_flete in df.columns:
     df[col_flete] = (
         df[col_flete]
@@ -203,7 +222,6 @@ st.markdown("---")
 # --- REPORTE DETALLADO (Vista en Pantalla) ---
 st.markdown("### 📋 Reporte Detallado de Viajes")
 
-# Preparamos las columnas visibles estilo reporte Calpi para la tabla en pantalla
 cols_visibles_map = {
     col_viaje: "# de Viaje",
     col_fecha: "Fecha",
@@ -216,7 +234,6 @@ cols_visibles_keys = [k for k in cols_visibles_map.keys() if k is not None and k
 df_view = df_filtered[cols_visibles_keys].copy()
 df_view.columns = [cols_visibles_map[c] for c in cols_visibles_keys]
 
-# Insertamos una columna 'No.' inicial en la visualización
 df_view.insert(0, "No.", range(1, len(df_view) + 1))
 st.dataframe(df_view, use_container_width=True)
 
@@ -226,18 +243,16 @@ def generar_excel_calpi(data_filtered):
     ws = wb.active
     ws.title = "Reporte Viajes"
     
-    # Asegurar visibilidad de cuadrícula
     ws.views.sheetView[0].showGridLines = True
     
-    # Fuentes y Estilos
     font_titulo = Font(name="Calibri", size=14, bold=True, color="000000")
     font_sub = Font(name="Calibri", size=11, bold=True, color="000000")
     font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     font_data = Font(name="Calibri", size=10, color="000000")
     font_total = Font(name="Calibri", size=11, bold=True, color="000000")
     
-    fill_header = PatternFill(start_color="333333", end_color="333333", fill_type="solid") # Gris oscuro ejecutivo
-    fill_total = PatternFill(start_color="E6E6E6", end_color="E6E6E6", fill_type="solid") # Gris claro para totales
+    fill_header = PatternFill(start_color="333333", end_color="333333", fill_type="solid")
+    fill_total = PatternFill(start_color="E6E6E6", end_color="E6E6E6", fill_type="solid")
     
     border_thin = Border(
         left=Side(style='thin', color='D9D9D9'),
@@ -250,15 +265,13 @@ def generar_excel_calpi(data_filtered):
         bottom=Side(style='double', color='000000')
     )
 
-    # 1. Títulos Corporativos
     ws.append(["TRANSPORTES CALPI, S.A. DE C.V."])
     ws.append(["REPORTE DE VIAJES PENDIENTES / FILTRADOS"])
-    ws.append([]) # Fila vacía
+    ws.append([])
     
     ws['A1'].font = font_titulo
     ws['A2'].font = font_sub
     
-    # 2. Encabezados de Tabla
     headers = ["No.", "# de Viaje", "Fecha", "Cliente", "Valor de Flete", "Observaciones", "Tipo Viaje"]
     ws.append(headers)
     
@@ -270,7 +283,6 @@ def generar_excel_calpi(data_filtered):
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = border_thin
         
-    # 3. Inserción de Datos
     current_row = 5
     for idx, row in enumerate(data_filtered.itertuples(), start=1):
         v_viaje = getattr(row, col_viaje.replace(" ", "_"), getattr(row, df.columns[0], ""))
@@ -288,18 +300,14 @@ def generar_excel_calpi(data_filtered):
         row_data = [idx, v_viaje, v_fecha, v_cliente, v_flete, v_obs, v_tipo]
         ws.append(row_data)
         
-        # Aplicar formato por celda
         for c_idx in range(1, len(row_data) + 1):
             cell = ws.cell(row=current_row, column=c_idx)
             cell.font = font_data
             cell.border = border_thin
             
-            # Alineaciones específicas
-            if c_idx in [1, 2]: # No. y # de Viaje
+            if c_idx in [1, 2, 3]:
                 cell.alignment = Alignment(horizontal="center")
-            elif c_idx == 3: # Fecha
-                cell.alignment = Alignment(horizontal="center")
-            elif c_idx == 5: # Valor de Flete
+            elif c_idx == 5:
                 cell.number_format = '"$"#,##0.00'
                 cell.alignment = Alignment(horizontal="right")
             else:
@@ -307,7 +315,6 @@ def generar_excel_calpi(data_filtered):
                 
         current_row += 1
         
-    # 4. Fila de Total
     total_row_idx = current_row
     ws.cell(row=total_row_idx, column=4, value="TOTAL PENDIENTE DE FACTURAR").font = font_total
     ws.cell(row=total_row_idx, column=4).alignment = Alignment(horizontal="right")
@@ -318,18 +325,16 @@ def generar_excel_calpi(data_filtered):
     cell_total.number_format = '"$"#,##0.00'
     cell_total.alignment = Alignment(horizontal="right")
     
-    # Bordes y formato para la fila de totales
     for c_idx in range(1, len(headers) + 1):
         cell = ws.cell(row=total_row_idx, column=c_idx)
         cell.border = border_total
         cell.fill = fill_total
 
-    # 5. Ajuste automático de ancho de columnas
     for col in ws.columns:
         max_len = 0
         col_letter = get_column_letter(col[0].column)
         for cell in col:
-            if cell.row > 2: # Omitir títulos largos para el cálculo de ancho
+            if cell.row > 2:
                 val_str = str(cell.value or '')
                 if len(val_str) > max_len:
                     max_len = len(val_str)
