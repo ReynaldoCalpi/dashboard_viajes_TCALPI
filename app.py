@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 # Configuración de la página
 st.set_page_config(
@@ -55,8 +58,9 @@ def cargar_datos(file):
                 "MERCANTIL DE COMERCIO DE EL SALVADOR, S.A.", 
                 "MOLINOS MODERNOS, S.A."
             ],
-            "Fecha": pd.date_range(start="2026-01-15", periods=10, freq="ME"),
+            "Fecha": pd.date_range(start="2026-10-01", periods=10, freq="D"),
             "Valor de Flete": [0, 950.00, 1650.00, 1650.00, 700.00, 700.00, 1203.75, 205.00, 1458.00, 827.50],
+            "Observaciones": ["", "", "", "CON PROFORMA", "", "", "", "", "", ""],
             "Motorista": ["Juan Pérez", "Carlos Gómez", "Roberto Rivas", "Mario Cruz", "Ana López"] * 2,
             "Tipo Viaje": ["VIAJE LOCAL", "VIAJE INTERNACIONAL"] * 5
         }
@@ -78,10 +82,11 @@ col_estado = next((c for c in df.columns if "completado" in str(c).lower() or "e
 col_cliente = next((c for c in df.columns if "cliente" in str(c).lower()), "Cliente")
 col_fecha = next((c for c in df.columns if "fecha" in str(c).lower() and "descarga" not in str(c).lower()), "Fecha")
 col_flete = next((c for c in df.columns if "flete" in str(c).lower() or "valor" in str(c).lower()), "Valor de Flete")
+col_observaciones = next((c for c in df.columns if "observacion" in str(c).lower()), "Observaciones")
 col_motorista = next((c for c in df.columns if "motorista" in str(c).lower() or "conductor" in str(c).lower()), "Motorista")
 col_tipoviaje = next((c for c in df.columns if "tipo viaje" in str(c).lower()), "Tipo Viaje")
 
-# Procesamiento de fechas y conversión a formato legible en español (ej. "Enero 2026")
+# Procesamiento de fechas y conversión a formato legible en español
 if col_fecha in df.columns:
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors="coerce")
     
@@ -111,14 +116,12 @@ if col_flete in df.columns:
 # --- FILTROS LATERALES MEJORADOS ---
 st.sidebar.header("🔍 Filtros Operativos")
 
-# 1. Filtro por Estado (Completado / Asignado / Anulado)
 if col_estado in df.columns:
     estados_disponibles = sorted([str(x) for x in df[col_estado].dropna().unique()])
     selected_estados = st.sidebar.multiselect("Filtrar por Estado:", estados_disponibles, default=estados_disponibles)
 else:
     selected_estados = []
 
-# 2. Filtro por Mes con nombres en español (con opción general)
 meses = sorted([str(x) for x in df["Mes-Anio"].dropna().unique()])
 st.sidebar.markdown("---")
 st.sidebar.subheader("📅 Filtro por Mes")
@@ -129,7 +132,6 @@ if todos_meses:
 else:
     selected_meses = st.sidebar.multiselect("Elige los Meses:", meses, default=meses[:1] if meses else [])
 
-# 3. Filtro por Motorista (con opción general)
 if col_motorista in df.columns:
     motoristas = sorted([str(x) for x in df[col_motorista].dropna().unique()])
     st.sidebar.markdown("---")
@@ -198,35 +200,164 @@ with col_g2:
 
 st.markdown("---")
 
-# --- REPORTE DETALLADO ---
+# --- REPORTE DETALLADO (Vista en Pantalla) ---
 st.markdown("### 📋 Reporte Detallado de Viajes")
-# Ocultamos la columna temporal de soporte "Mes-Anio" para que la tabla conserve el aspecto original limpio
-columnas_mostrar = [c for c in df_filtered.columns if c != "Mes-Anio"]
-st.dataframe(df_filtered[columnas_mostrar], use_container_width=True)
 
-# --- DESCARGAS ---
-@st.cache_data
-def convert_to_csv(data):
-    return data.to_csv(index=False).encode('utf-8')
+# Preparamos las columnas visibles estilo reporte Calpi para la tabla en pantalla
+cols_visibles_map = {
+    col_viaje: "# de Viaje",
+    col_fecha: "Fecha",
+    col_cliente: "Cliente",
+    col_flete: "Valor de Flete",
+    col_observaciones if col_observaciones in df_filtered.columns else None: "Observaciones",
+    col_tipoviaje if col_tipoviaje in df_filtered.columns else None: "Tipo Viaje"
+}
+cols_visibles_keys = [k for k in cols_visibles_map.keys() if k is not None and k in df_filtered.columns]
+df_view = df_filtered[cols_visibles_keys].copy()
+df_view.columns = [cols_visibles_map[c] for c in cols_visibles_keys]
 
-@st.cache_data
-def convert_to_excel(data):
+# Insertamos una columna 'No.' inicial en la visualización
+df_view.insert(0, "No.", range(1, len(df_view) + 1))
+st.dataframe(df_view, use_container_width=True)
+
+# --- GENERADOR DE REPORTE EXCEL CON DISEÑO PROFESIONAL (ESTILO CALPI) ---
+def generar_excel_calpi(data_filtered):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Reporte Viajes"
+    
+    # Asegurar visibilidad de cuadrícula
+    ws.views.sheetView[0].showGridLines = True
+    
+    # Fuentes y Estilos
+    font_titulo = Font(name="Calibri", size=14, bold=True, color="000000")
+    font_sub = Font(name="Calibri", size=11, bold=True, color="000000")
+    font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    font_data = Font(name="Calibri", size=10, color="000000")
+    font_total = Font(name="Calibri", size=11, bold=True, color="000000")
+    
+    fill_header = PatternFill(start_color="333333", end_color="333333", fill_type="solid") # Gris oscuro ejecutivo
+    fill_total = PatternFill(start_color="E6E6E6", end_color="E6E6E6", fill_type="solid") # Gris claro para totales
+    
+    border_thin = Border(
+        left=Side(style='thin', color='D9D9D9'),
+        right=Side(style='thin', color='D9D9D9'),
+        top=Side(style='thin', color='D9D9D9'),
+        bottom=Side(style='thin', color='D9D9D9')
+    )
+    border_total = Border(
+        top=Side(style='thin', color='000000'),
+        bottom=Side(style='double', color='000000')
+    )
+
+    # 1. Títulos Corporativos
+    ws.append(["TRANSPORTES CALPI, S.A. DE C.V."])
+    ws.append(["REPORTE DE VIAJES PENDIENTES / FILTRADOS"])
+    ws.append([]) # Fila vacía
+    
+    ws['A1'].font = font_titulo
+    ws['A2'].font = font_sub
+    
+    # 2. Encabezados de Tabla
+    headers = ["No.", "# de Viaje", "Fecha", "Cliente", "Valor de Flete", "Observaciones", "Tipo Viaje"]
+    ws.append(headers)
+    
+    header_row_idx = 4
+    for col_num in range(1, len(headers) + 1):
+        cell = ws.cell(row=header_row_idx, column=col_num)
+        cell.font = font_header
+        cell.fill = fill_header
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border_thin
+        
+    # 3. Inserción de Datos
+    current_row = 5
+    for idx, row in enumerate(data_filtered.itertuples(), start=1):
+        v_viaje = getattr(row, col_viaje.replace(" ", "_"), getattr(row, df.columns[0], ""))
+        v_fecha = getattr(row, col_fecha.replace(" ", "_"), "")
+        if pd.notna(v_fecha):
+            v_fecha = pd.to_datetime(v_fecha).strftime("%d/%m/%Y")
+        else:
+            v_fecha = ""
+            
+        v_cliente = str(getattr(row, col_cliente.replace(" ", "_"), ""))
+        v_flete = float(getattr(row, col_flete.replace(" ", "_"), 0))
+        v_obs = str(getattr(row, col_observaciones.replace(" ", "_"), "")) if col_observaciones in data_filtered.columns else ""
+        v_tipo = str(getattr(row, col_tipoviaje.replace(" ", "_"), "")) if col_tipoviaje in data_filtered.columns else ""
+        
+        row_data = [idx, v_viaje, v_fecha, v_cliente, v_flete, v_obs, v_tipo]
+        ws.append(row_data)
+        
+        # Aplicar formato por celda
+        for c_idx in range(1, len(row_data) + 1):
+            cell = ws.cell(row=current_row, column=c_idx)
+            cell.font = font_data
+            cell.border = border_thin
+            
+            # Alineaciones específicas
+            if c_idx in [1, 2]: # No. y # de Viaje
+                cell.alignment = Alignment(horizontal="center")
+            elif c_idx == 3: # Fecha
+                cell.alignment = Alignment(horizontal="center")
+            elif c_idx == 5: # Valor de Flete
+                cell.number_format = '"$"#,##0.00'
+                cell.alignment = Alignment(horizontal="right")
+            else:
+                cell.alignment = Alignment(horizontal="left")
+                
+        current_row += 1
+        
+    # 4. Fila de Total
+    total_row_idx = current_row
+    ws.cell(row=total_row_idx, column=4, value="TOTAL PENDIENTE DE FACTURAR").font = font_total
+    ws.cell(row=total_row_idx, column=4).alignment = Alignment(horizontal="right")
+    
+    formula_flete = f"=SUM(E5:E{total_row_idx-1})" if total_row_idx > 5 else 0
+    cell_total = ws.cell(row=total_row_idx, column=5, value=formula_flete)
+    cell_total.font = font_total
+    cell_total.number_format = '"$"#,##0.00'
+    cell_total.alignment = Alignment(horizontal="right")
+    
+    # Bordes y formato para la fila de totales
+    for c_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=total_row_idx, column=c_idx)
+        cell.border = border_total
+        cell.fill = fill_total
+
+    # 5. Ajuste automático de ancho de columnas
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            if cell.row > 2: # Omitir títulos largos para el cálculo de ancho
+                val_str = str(cell.value or '')
+                if len(val_str) > max_len:
+                    max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        data.to_excel(writer, index=False, sheet_name='Reporte Viajes')
+    wb.save(output)
+    output.seek(0)
     return output.getvalue()
 
+# --- BOTONES DE DESCARGA ---
+st.markdown("---")
 c_down1, c_down2 = st.columns(2)
-c_down1.download_button(
-    label="📥 Descargar Reporte en CSV",
-    data=convert_to_csv(df_filtered[columnas_mostrar]),
-    file_name="reporte_viajes_calpi.csv",
-    mime="text/csv"
-)
 
-c_down2.download_button(
-    label="📥 Descargar Reporte en Excel (.xlsx)",
-    data=convert_to_excel(df_filtered[columnas_mostrar]),
-    file_name="reporte_viajes_calpi.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+with c_down1:
+    csv_data = df_filtered[cols_visibles_keys].to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Descargar Reporte en CSV",
+        data=csv_data,
+        file_name="reporte_viajes_calpi.csv",
+        mime="text/csv"
+    )
+
+with c_down2:
+    excel_bytes = generar_excel_calpi(df_filtered)
+    st.download_button(
+        label="📥 Descargar Reporte Ejecutivo en Excel (.xlsx)",
+        data=excel_bytes,
+        file_name="Reporte_Viajes_Calpi.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
