@@ -36,13 +36,10 @@ def cargar_datos(file):
                 return pd.read_csv(file)
             else:
                 xls = pd.ExcelFile(file)
-                # Si existe la hoja '2' (resumen estructurado), la priorizamos por limpieza, si no usamos '1'
+                # Priorizamos la hoja 2 si existe y está estructurada, o la hoja 1
                 sheet_name = '2' if '2' in xls.sheet_names else ('1' if '1' in xls.sheet_names else xls.sheet_names[0])
-                
                 if sheet_name == '2':
-                    # La hoja 2 tiene un encabezado en la fila 3 (índice 3)
-                    temp_df = pd.read_excel(file, sheet_name=sheet_name, header=3)
-                    return temp_df
+                    return pd.read_excel(file, sheet_name=sheet_name, header=4)
                 else:
                     return pd.read_excel(file, sheet_name=sheet_name)
         except Exception as e:
@@ -83,29 +80,37 @@ if uploaded_file is None:
 else:
     st.sidebar.success("¡Archivo cargado con éxito!")
 
-# Normalización inteligente de nombres de columnas
+# Normalización de nombres de columnas exactas
 col_viaje = next((c for c in df.columns if "viaje" in str(c).lower() and "tipo" not in str(c).lower()), df.columns[0])
 col_estado = next((c for c in df.columns if "completado" in str(c).lower() or "estado" in str(c).lower()), "Completado")
 col_cliente = next((c for c in df.columns if "cliente" in str(c).lower()), "Cliente")
 col_fecha = next((c for c in df.columns if "fecha" in str(c).lower() and "descarga" not in str(c).lower()), "Fecha")
 
-# Búsqueda robusta de la columna de flete (evita textos como 'No Aplica' o 'PROPIO')
+# Búsqueda robusta de la columna de flete
 col_flete = None
 for c in df.columns:
     if any(k in str(c).lower() for k in ["flete", "valor", "monto", "total"]):
-        # Verificamos que tenga valores numéricos predominantes
-        serie_num = pd.to_numeric(df[c].astype(str).str.replace("$", "", regex=False).str.replace(",", "", regex=False), errors="coerce")
-        if serie_num.dropna().count() > 0:
-            col_flete = c
-            break
+        col_flete = c
+        break
 if not col_flete:
-    col_flete = df.columns[-1] # Por defecto la última columna si es numérica
+    col_flete = df.columns[-1]
 
 col_observaciones = next((c for c in df.columns if "observacion" in str(c).lower()), "Observaciones")
 col_motorista = next((c for c in df.columns if "motorista" in str(c).lower() or "conductor" in str(c).lower()), "Motorista")
 col_tipoviaje = next((c for c in df.columns if "tipo viaje" in str(c).lower()), "Tipo Viaje")
 
-# Procesamiento de fechas y conversión a formato legible en español
+# Limpieza estricta e inmediata de la columna de flete a formato numérico real
+if col_flete in df.columns:
+    df[col_flete] = (
+        df[col_flete]
+        .astype(str)
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.strip()
+    )
+    df[col_flete] = pd.to_numeric(df[col_flete], errors="coerce").fillna(0)
+
+# Procesamiento de fechas y conversión a formato legible en español (ej. "Octubre 2026")
 if col_fecha in df.columns:
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors="coerce")
     
@@ -121,18 +126,7 @@ if col_fecha in df.columns:
 else:
     df["Mes-Anio"] = "Sin Fecha"
 
-# Limpieza estricta de la columna de flete a formato numérico real
-if col_flete in df.columns:
-    df[col_flete] = (
-        df[col_flete]
-        .astype(str)
-        .str.replace("$", "", regex=False)
-        .str.replace(",", "", regex=False)
-        .str.strip()
-    )
-    df[col_flete] = pd.to_numeric(df[col_flete], errors="coerce").fillna(0)
-
-# --- FILTROS LATERALES MEJORADOS ---
+# --- FILTROS LATERALES ---
 st.sidebar.header("🔍 Filtros Operativos")
 
 if col_estado in df.columns:
@@ -237,7 +231,7 @@ df_view.columns = [cols_visibles_map[c] for c in cols_visibles_keys]
 df_view.insert(0, "No.", range(1, len(df_view) + 1))
 st.dataframe(df_view, use_container_width=True)
 
-# --- GENERADOR DE REPORTE EXCEL CON DISEÑO PROFESIONAL (ESTILO CALPI) ---
+# --- GENERADOR DE REPORTE EXCEL CON DISEÑO PROFESIONAL ---
 def generar_excel_calpi(data_filtered):
     wb = Workbook()
     ws = wb.active
