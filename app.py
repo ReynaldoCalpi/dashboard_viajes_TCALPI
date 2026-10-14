@@ -6,23 +6,23 @@ from datetime import datetime
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Dashboard de Control de Viajes y Fletes",
+    page_title="Gestión y Control de Viajes | Dashboard",
     page_icon="🚚",
     layout="wide"
 )
 
 st.title("🚚 Sistema de Control de Viajes, Fletes y Facturación")
-st.markdown("Carga tu archivo de Excel para gestionar viajes pendientes de facturar, analizar rutas y descargar reportes oficiales.")
+st.markdown("Carga tu archivo de Excel para gestionar viajes pendientes de facturar, analizar rutas y descargar reportes organizados.")
 
-# Carga de archivo
-st.sidebar.header("📁 Cargar Archivo de Excel")
-uploaded_file = st.sidebar.file_uploader("Selecciona tu archivo (.xlsx o .xls)", type=["xlsx", "xls", "csv"])
+# Sidebar - Carga de Archivo
+st.sidebar.header("📁 Cargar Archivo")
+uploaded_file = st.sidebar.file_uploader("Selecciona tu archivo (.xlsx, .xls, .csv)", type=["xlsx", "xls", "csv"])
 
-# Datos de muestra en caso de no subir archivo
+# Datos de muestra adaptados
 def cargar_datos_muestra():
     data = {
-        "Viaje": [82373, 83637, 83884, 83889, 83915, 83920, 83927, 83932, 83941, 83944, 83946, 83967],
-        "Fecha": ["2026-08-24", "2026-09-25", "2026-10-02", "2026-10-02", "2026-10-13", "2026-10-14", "2026-10-02", "2026-10-01", "2026-10-05", "2026-10-05", "2026-10-02", "2026-10-12"],
+        "Viaje": [82373, 83637, 83884, 83889, 83915, 83920, 83927, 83932, 83941, 83944, 83946],
+        "Fecha": ["2026-08-24", "2026-09-25", "2026-10-02", "2026-10-02", "2026-10-13", "2026-10-14", "2026-10-02", "2026-10-01", "2026-10-05", "2026-10-05", "2026-10-02"],
         "Cliente": [
             "TRANSPORTES CALPI, S.A. DE C.V.",
             "DERIVADOS DE MAIZ DE HONDURAS, S.A. DE C.V.",
@@ -34,15 +34,16 @@ def cargar_datos_muestra():
             "CERVECERIA SALVADOREÑA, S.A. DE C.V.",
             "MERCANTIL DE COMERCIO DE EL SALVADOR, S.A.",
             "MOLINOS MODERNOS, S.A.",
-            "HARISA, S.A. DE C.V.",
-            "PRODUCTOS ALIMENTICIOS BOCADELI, S.A DE C.V."
+            "HARISA, S.A. DE C.V."
         ],
-        "Completado": ["ASIGNADO", "ASIGNADO", "ASIGNADO", "ASIGNADO", "ASIGNADO", "ASIGNADO", "ASIGNADO", "ASIGNADO", "ASIGNADO", "ASIGNADO", "ASIGNADO", "ASIGNADO"],
-        "Valor de Flete": [0, 950.00, 1650.00, 1650.00, 700.00, 700.00, 1203.75, 205.00, 1458.00, 827.50, 1203.75, 800.00],
-        "Observaciones": ["", "", "", "", "", "", "CON PROFORMA", "", "", "", "CON PROFORMA", ""],
-        "Tipo Viaje": ["VIAJE LOCAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE LOCAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL"],
-        "Motorista": ["FERMIN DE JESUS", "ROBERTO CARLOS", "JUAN PEREZ", "JUAN PEREZ", "CARLOS GOMEZ", "CARLOS GOMEZ", "MARIO CRUZ", "ROBERTO RIVAS", "ANA LOPEZ", "MARIO CRUZ", "MARIO CRUZ", "JUAN PEREZ"],
-        "Ciudad Origen": ["Apopa", "Choloma", "Guatemala", "Guatemala", "Apopa", "Apopa", "Guatemala", "Apopa", "Managua", "Apopa", "Guatemala", "San Salvador"]
+        "Completado": ["ASIGNADO"] * 11,
+        "Valor de Flete": [0, 950.00, 1650.00, 1650.00, 700.00, 700.00, 1203.75, 205.00, 1458.00, 827.50, 1203.75],
+        "Observaciones": ["", "", "", "", "", "", "CON PROFORMA", "", "", "", "CON PROFORMA"],
+        "Tipo Viaje": ["VIAJE LOCAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE LOCAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL"],
+        "Motorista": ["FERMIN DE JESUS GRACIAS CASTRO", "ROBERTO CARLOS DELGADO NERIO", "JUAN PEREZ", "JUAN PEREZ", "CARLOS GOMEZ", "CARLOS GOMEZ", "MARIO CRUZ", "ROBERTO RIVAS", "ANA LOPEZ", "MARIO CRUZ", "MARIO CRUZ"],
+        "Lugar Embarque": ["El Salvador", "Honduras", "Guatemala", "Guatemala", "El Salvador", "El Salvador", "Guatemala", "El Salvador", "Nicaragua", "El Salvador", "Guatemala"],
+        "Ciudad Origen": ["Apopa", "Choloma", "Ciudad de Guatemala", "Ciudad de Guatemala", "Apopa", "Apopa", "Ciudad de Guatemala", "Apopa", "Managua", "Apopa", "Ciudad de Guatemala"],
+        "Lugar Destino": ["El Salvador", "El Salvador", "El Salvador", "El Salvador", "Honduras", "Honduras", "El Salvador", "El Salvador", "El Salvador", "Honduras", "El Salvador"]
     }
     return pd.DataFrame(data)
 
@@ -57,7 +58,7 @@ if uploaded_file is not None:
         st.error(f"Error al leer el archivo: {e}")
         st.stop()
 else:
-    st.sidebar.info("📌 Mostrando datos de demostración. Carga tu Excel para analizar tus datos reales.")
+    st.sidebar.info("📌 Mostrando datos de demostración. Sube tu archivo Excel para analizar tu información real.")
     df = cargar_datos_muestra()
 
 # Búsqueda dinámica de columnas
@@ -75,10 +76,10 @@ col_cliente = buscar_columna(["cliente", "empresa", "razon_social"], df.columns,
 col_flete = buscar_columna(["valor de flete", "flete", "valor", "monto", "precio", "tarifa"], df.columns, None)
 col_obs = buscar_columna(["observaciones", "observacion", "obs", "nota", "comentario"], df.columns, None)
 col_tipo_viaje = buscar_columna(["tipo viaje", "tipo_viaje", "tipo", "mercancia", "servicio"], df.columns, "Tipo Viaje")
-col_completado = buscar_columna(["completado", "completo", "estado", "estatus", "status"], df.columns, None)
+col_completado = buscar_columna(["completado", "completo", "estado", "estatus", "status"], df.columns, "Completado")
 col_motorista = buscar_columna(["motorista", "conductor", "chofer"], df.columns, "Motorista")
 
-# Limpieza y conversión obligatoria de la columna Flete a numérica
+# Limpieza estricta de la columna de flete a numérica
 if col_flete and col_flete in df.columns:
     df[col_flete] = (
         df[col_flete]
@@ -92,31 +93,33 @@ else:
     df["Valor de Flete"] = 0.0
     col_flete = "Valor de Flete"
 
+# Normalización de Fechas y Meses
 if col_fecha and col_fecha in df.columns:
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors="coerce")
     df["Año-Mes"] = df[col_fecha].dt.to_period("M").astype(str)
 else:
     df["Año-Mes"] = "Sin Fecha"
 
-# Asegurar columna Observaciones
 if not col_obs or col_obs not in df.columns:
     df["Observaciones"] = ""
     col_obs = "Observaciones"
 else:
     df[col_obs] = df[col_obs].fillna("")
 
-# Pestañas principales de la aplicación
-tab_reporte, tab_dashboard, tab_general = st.tabs([
-    "📑 Reporte de Viajes Pendientes de Facturar",
-    "📊 Dashboard y Métricas",
-    "🔍 Consulta General"
-])
-
-# ==========================================
-# PESTAÑA 1: REPORTE DE VIAJES PENDIENTES
-# ==========================================
-with tab_reporte:
-    fecha_hoy_str = datetime.now().strftime("%d DE %B DE %Y").upper()
-    meses_es = {
-        "JANUARY": "ENERO", "FEBRUARY": "FEBRERO", "MARCH": "MARZO", "APRIL": "ABRIL",
-        "MAY": "MAYO", "JUNE": "JUNIO", "JUL
+# Función para exportar a Excel con formato oficial
+def generar_excel_reporte_oficial(df_export, titulo_reporte):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name='Pendientes Facturar', startrow=2)
+        worksheet = writer.sheets['Pendientes Facturar']
+        worksheet['A1'] = titulo_reporte.upper()
+        
+        col_flete_idx = None
+        for idx, col_name in enumerate(df_export.columns, 1):
+            if "flete" in str(col_name).lower() or "valor" in str(col_name).lower():
+                col_flete_idx = idx
+                break
+                
+        if col_flete_idx:
+            for row in range(4, len(df_export) + 4):
+                cell = worksheet.cell
