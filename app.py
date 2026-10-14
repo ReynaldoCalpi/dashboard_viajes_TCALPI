@@ -20,18 +20,43 @@ uploaded_file = st.sidebar.file_uploader("Selecciona tu archivo (.xlsx o .xls)",
 # Datos de muestra en caso de no subir archivo
 def cargar_datos_muestra():
     data = {
-        "Fecha": pd.date_range(start="2026-01-01", periods=100, freq="D"),
-        "Motorista": ["Juan Pérez", "Carlos Gómez", "Roberto Rivas", "Mario Cruz", "Ana López"] * 20,
-        "Origen": ["San Salvador", "Apopa", "Santa Ana", "San Miguel", "Sonsonate"] * 20,
-        "Destino": ["Puerto de Acajutla", "Metapán", "La Libertad", "Ahuachapán", "Usulután"] * 20,
-        "Lugar Embarque": ["Bodega Central Apopa", "Terminal Acajutla", "Depósito Norte", "Planta Soyapango"] * 25,
-        "Valor Flete": [350, 420, 500, 280, 600, 450, 380, 520, 310, 490] * 10,
-        "Completado": ["Pendiente", "Completado", "Pendiente", "Completado", "Pendiente"] * 20,
-        "# de Viaje": list(range(83900, 84000)),
-        "Cliente": ["TRANSPORTES CALPI, S.A. DE C.V.", "DERIVADOS DE MAIZ DE HONDURAS, S.A. DE C.V.", "DISTRIBUIDORA ZABLAH S.A. DE C.V.", "DISTRIBUIDORA CHAVARRIA, S.A. DE C.V", "HARISA, S.A. DE C.V."] * 20,
-        "Observaciones": ["", "", "", "CON PROFORMA", ""] * 20,
-        "Tipo Viaje": ["VIAJE LOCAL", "VIAJE INTERNACIONAL"] * 50
+        "Fecha": pd.date_range(start="2026-08-24", periods=18, freq="D"),
+        "# de Viaje": [82373, 83637, 83884, 83889, 83915, 83920, 83927, 83932, 83941, 83944, 83946, 83967, 83968, 83978, 83979, 83980, 83981, 83982],
+        "Cliente": [
+            "TRANSPORTES CALPI, S.A. DE C.V.", 
+            "DERIVADOS DE MAIZ DE HONDURAS, S.A. DE C.V.", 
+            "DISTRIBUIDORA ZABLAH S.A. DE C.V.", 
+            "DISTRIBUIDORA ZABLAH S.A. DE C.V.", 
+            "DISTRIBUIDORA CHAVARRIA, S.A. DE C.V", 
+            "DISTRIBUIDORA CHAVARRIA, S.A. DE C.V", 
+            "HARISA, S.A. DE C.V.", 
+            "CERVECERIA SALVADOREÑA, S.A. DE C.V.", 
+            "MERCANTIL DE COMERCIO DE EL SALVADOR, S.A.", 
+            "MOLINOS MODERNOS, S.A.", 
+            "HARISA, S.A. DE C.V.", 
+            "PRODUCTOS ALIMENTICIOS BOCADELI, S.A DE C.V", 
+            "AVICOLA SALVADOREÑA, S.A. DE C.V.", 
+            "UNIFERSA-DISAGRO, S.A. DE C.V.", 
+            "UNIFERSA-DISAGRO, S.A. DE C.V.", 
+            "UNIFERSA-DISAGRO, S.A. DE C.V.", 
+            "UNIFERSA-DISAGRO, S.A. DE C.V.", 
+            "UNIFERSA-DISAGRO, S.A. DE C.V."
+        ],
+        "Valor Flete": [0, 950.00, 1650.00, 1650.00, 700.00, 700.00, 1203.75, 205.00, 1458.00, 827.50, 1203.75, 800.00, 0, 1187.50, 1187.50, 1187.50, 1187.50, 1187.50],
+        "Observaciones": ["", "", "", "", "", "", "CON PROFORMA", "", "", "", "CON PROFORMA", "", "", "", "", "", "", ""],
+        "Tipo Viaje": [
+            "VIAJE LOCAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", 
+            "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE LOCAL", 
+            "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", 
+            "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL", 
+            "VIAJE INTERNACIONAL", "VIAJE INTERNACIONAL"
+        ],
+        "Motorista": ["Juan Pérez", "Carlos Gómez", "Roberto Rivas", "Mario Cruz", "Ana López"] * 4,
+        "Completado": ["Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado"]
     }
+    # Ajustamos longitudes para que coincidan en la muestra de 18 filas
+    for k in data:
+        data[k] = data[k][:18]
     return pd.DataFrame(data)
 
 if uploaded_file is not None:
@@ -45,10 +70,10 @@ if uploaded_file is not None:
         st.error(f"Error al leer el archivo: {e}")
         st.stop()
 else:
-    st.sidebar.info("📌 Viendo datos de demostración. Carga tu Excel para analizar tus datos reales.")
+    st.sidebar.info("📌 Viendo datos de demostración basados en el reporte solicitado. Carga tu Excel para analizar datos reales.")
     df = cargar_datos_muestra()
 
-# Detección y normalización de columnas
+# Detección y normalización de columnas clave
 col_fecha = next((c for c in df.columns if "fecha" in str(c).lower() or "date" in str(c).lower()), None)
 col_motorista = next((c for c in df.columns if "motorista" in str(c).lower() or "conductor" in str(c).lower()), df.columns[1])
 col_flete = next((c for c in df.columns if "flete" in str(c).lower() or "valor" in str(c).lower() or "monto" in str(c).lower()), None)
@@ -72,33 +97,30 @@ if col_flete:
     df[col_flete] = pd.to_numeric(df[col_flete], errors="coerce").fillna(0)
 
 # Filtros Laterales
-st.sidebar.header("🔍 Filtros")
+st.sidebar.header("🔍 Filtros Generales")
 meses = sorted(df["Año-Mes"].dropna().unique())
 selected_meses = st.sidebar.multiselect("Filtrar por Mes:", meses, default=meses)
 
 motoristas = sorted(df[col_motorista].dropna().unique())
 selected_motoristas = st.sidebar.multiselect("Filtrar por Motorista:", motoristas, default=motoristas)
 
-# Selector de Estado para la columna completado
+# NUEVO: Selector interactivo para la columna "Completado" / Estado
+st.sidebar.header("✅ Selector de Estado")
 if col_completado:
-    estados = sorted(df[col_completado].dropna().unique())
-    selected_estados = st.sidebar.multiselect("Filtrar por Estado (Completado):", estados, default=estados)
+    estados_disponibles = sorted(df[col_completado].dropna().unique())
+    selected_estados = st.sidebar.multiselect("Seleccionar Estado (Completado):", estados_disponibles, default=estados_disponibles)
 else:
-    selected_estados = None
-    st.sidebar.info("💡 Columna 'Completado' o 'Estado' no detectada automáticamente en el archivo.")
+    # Creamos un selector simulado o basado en Tipo Viaje si no existe la columna exacta
+    col_completado = next((c for c in df.columns if "tipo" in str(c).lower()), df.columns[-1])
+    estados_disponibles = sorted(df[col_completado].dropna().unique())
+    selected_estados = st.sidebar.multiselect("Seleccionar Estado/Tipo:", estados_disponibles, default=estados_disponibles)
 
 # Aplicación de Filtros
-if col_completado and selected_estados is not None:
-    df_filtered = df[
-        (df["Año-Mes"].isin(selected_meses)) &
-        (df[col_motorista].isin(selected_motoristas)) &
-        (df[col_completado].isin(selected_estados))
-    ]
-else:
-    df_filtered = df[
-        (df["Año-Mes"].isin(selected_meses)) &
-        (df[col_motorista].isin(selected_motoristas))
-    ]
+df_filtered = df[
+    (df["Año-Mes"].isin(selected_meses)) &
+    (df[col_motorista].isin(selected_motoristas)) &
+    (df[col_completado].isin(selected_estados))
+]
 
 # Indicadores Principales (KPIs)
 st.markdown("### 📊 Indicadores Clave (KPIs)")
@@ -144,9 +166,16 @@ with col_g2:
 
 st.markdown("---")
 
-# Tabla de Datos y Reporte Estilo Formato Solicitado
-st.markdown("### 📋 REPORTE DE VIAJES PENDIENTES / REGISTRO DETALLADO")
-st.dataframe(df_filtered, use_container_width=True)
+# Reporte Detallado Estilo Imagen de Referencia
+st.markdown("### 📋 REPORTE DE VIAJES PENDIENTES DE FACTURAR")
+st.markdown("Visualización ajustada con formato tabular limpio de columnas clave (# de Viaje, Fecha, Cliente, Valor de Flete, Observaciones y Tipo Viaje).")
+
+# Seleccionamos y ordenamos para mostrar el reporte idéntico al solicitado en la imagen si las columnas existen
+columnas_reporte = [c for c in ["# de Viaje", "Fecha", "Cliente", "Valor Flete", "Observaciones", "Tipo Viaje"] if c in df_filtered.columns]
+if not columnas_reporte:
+    columnas_reporte = df_filtered.columns
+
+st.dataframe(df_filtered[columnas_reporte], use_container_width=True)
 
 @st.cache_data
 def convert_to_csv(data):
@@ -156,7 +185,7 @@ def convert_to_csv(data):
 def convert_to_excel(data):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        data.to_excel(writer, index=False, sheet_name='Viajes')
+        data.to_excel(writer, index=False, sheet_name='Reporte Viajes')
     return output.getvalue()
 
 c_down1, c_down2 = st.columns(2)
