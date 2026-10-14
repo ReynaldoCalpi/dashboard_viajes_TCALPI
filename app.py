@@ -36,10 +36,8 @@ def cargar_datos(file):
                 return pd.read_csv(file)
             else:
                 xls = pd.ExcelFile(file)
-                # Si existe la hoja '2', leemos desde la fila de encabezados correcta (header=4)
                 if '2' in xls.sheet_names:
                     df_sheet2 = pd.read_excel(file, sheet_name='2', header=4)
-                    # Aseguramos nombres de columnas estándar
                     df_sheet2.columns = [str(c).strip() for c in df_sheet2.columns]
                     if 'Total' in df_sheet2.columns:
                         df_sheet2.rename(columns={'Total': 'Valor de Flete'}, inplace=True)
@@ -112,7 +110,7 @@ if col_flete in df.columns:
     )
     df[col_flete] = pd.to_numeric(df[col_flete], errors="coerce").fillna(0)
 
-# Procesamiento de fechas y conversión a formato legible en español (ej. "Octubre 2026")
+# Procesamiento de fechas y conversión a formato legible en español
 if col_fecha in df.columns:
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors="coerce")
     
@@ -131,7 +129,7 @@ else:
 # --- FILTROS LATERALES ---
 st.sidebar.header("🔍 Filtros Operativos")
 
-if col_estado in df.columns and col_estado in df.columns:
+if col_estado in df.columns:
     estados_disponibles = sorted([str(x) for x in df[col_estado].dropna().unique()])
     selected_estados = st.sidebar.multiselect("Filtrar por Estado:", estados_disponibles, default=estados_disponibles)
 else:
@@ -281,17 +279,29 @@ def generar_excel_calpi(data_filtered):
         
     current_row = 5
     for idx, row in enumerate(data_filtered.itertuples(), start=1):
-        v_viaje = getattr(row, col_viaje.replace(" ", "_"), getattr(row, df.columns[0], ""))
-        v_fecha = getattr(row, col_fecha.replace(" ", "_"), "")
+        # Mapeo seguro usando las variables de columnas detectadas
+        v_viaje = getattr(row, str(col_viaje).replace(" ", "_"), "")
+        v_fecha = getattr(row, str(col_fecha).replace(" ", "_"), "")
         if pd.notna(v_fecha):
-            v_fecha = pd.to_datetime(v_fecha).strftime("%d/%m/%Y")
+            try:
+                v_fecha = pd.to_datetime(v_fecha).strftime("%d/%m/%Y")
+            except:
+                v_fecha = str(v_fecha)
         else:
             v_fecha = ""
             
-        v_cliente = str(getattr(row, col_cliente.replace(" ", "_"), ""))
-        v_flete = float(getattr(row, col_flete.replace(" ", "_"), 0))
-        v_obs = str(getattr(row, col_observaciones.replace(" ", "_"), "")) if col_observaciones in data_filtered.columns else ""
-        v_tipo = str(getattr(row, col_tipoviaje.replace(" ", "_"), "")) if col_tipoviaje in data_filtered.columns else ""
+        v_cliente = str(getattr(row, str(col_cliente).replace(" ", "_"), ""))
+        v_flete = float(getattr(row, str(col_flete).replace(" ", "_"), 0))
+        
+        v_obs = ""
+        if col_observaciones in data_filtered.columns:
+            v_obs = str(getattr(row, str(col_observaciones).replace(" ", "_"), ""))
+            if v_obs == "nan": v_obs = ""
+            
+        v_tipo = ""
+        if col_tipoviaje in data_filtered.columns:
+            v_tipo = str(getattr(row, str(col_tipoviaje).replace(" ", "_"), ""))
+            if v_tipo == "nan": v_tipo = ""
         
         row_data = [idx, v_viaje, v_fecha, v_cliente, v_flete, v_obs, v_tipo]
         ws.append(row_data)
