@@ -54,7 +54,6 @@ def cargar_datos_muestra():
         "Motorista": ["Juan Pérez", "Carlos Gómez", "Roberto Rivas", "Mario Cruz", "Ana López"] * 4,
         "Completado": ["Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado", "Pendiente", "Completado"]
     }
-    # Ajustamos longitudes para que coincidan en la muestra de 18 filas
     for k in data:
         data[k] = data[k][:18]
     return pd.DataFrame(data)
@@ -75,7 +74,7 @@ else:
 
 # Detección y normalización de columnas clave
 col_fecha = next((c for c in df.columns if "fecha" in str(c).lower() or "date" in str(c).lower()), None)
-col_motorista = next((c for c in df.columns if "motorista" in str(c).lower() or "conductor" in str(c).lower()), df.columns[1])
+col_motorista = next((c for c in df.columns if "motorista" in str(c).lower() or "conductor" in str(c).lower()), df.columns[1] if len(df.columns) > 1 else df.columns[0])
 col_flete = next((c for c in df.columns if "flete" in str(c).lower() or "valor" in str(c).lower() or "monto" in str(c).lower()), None)
 col_completado = next((c for c in df.columns if "completado" in str(c).lower() or "estado" in str(c).lower()), None)
 
@@ -85,7 +84,7 @@ if col_fecha:
 else:
     df["Año-Mes"] = "Sin Fecha"
 
-# Limpieza de la columna de flete para asegurar formato numérico (evita errores con símbolos $ o textos)
+# Limpieza de la columna de flete para asegurar formato numérico
 if col_flete:
     df[col_flete] = (
         df[col_flete]
@@ -96,30 +95,29 @@ if col_flete:
     )
     df[col_flete] = pd.to_numeric(df[col_flete], errors="coerce").fillna(0)
 
-# Filtros Laterales
+# Filtros Laterales (Seguros contra errores de tipos de datos)
 st.sidebar.header("🔍 Filtros Generales")
-meses = sorted(df["Año-Mes"].dropna().unique())
+meses = sorted([str(x) for x in df["Año-Mes"].dropna().unique()])
 selected_meses = st.sidebar.multiselect("Filtrar por Mes:", meses, default=meses)
 
-motoristas = sorted(df[col_motorista].dropna().unique())
+motoristas = sorted([str(x) for x in df[col_motorista].dropna().unique()])
 selected_motoristas = st.sidebar.multiselect("Filtrar por Motorista:", motoristas, default=motoristas)
 
-# NUEVO: Selector interactivo para la columna "Completado" / Estado
+# Selector interactivo para la columna "Completado" / Estado
 st.sidebar.header("✅ Selector de Estado")
 if col_completado:
-    estados_disponibles = sorted(df[col_completado].dropna().unique())
+    estados_disponibles = sorted([str(x) for x in df[col_completado].dropna().unique()])
     selected_estados = st.sidebar.multiselect("Seleccionar Estado (Completado):", estados_disponibles, default=estados_disponibles)
 else:
-    # Creamos un selector simulado o basado en Tipo Viaje si no existe la columna exacta
     col_completado = next((c for c in df.columns if "tipo" in str(c).lower()), df.columns[-1])
-    estados_disponibles = sorted(df[col_completado].dropna().unique())
+    estados_disponibles = sorted([str(x) for x in df[col_completado].dropna().unique()])
     selected_estados = st.sidebar.multiselect("Seleccionar Estado/Tipo:", estados_disponibles, default=estados_disponibles)
 
 # Aplicación de Filtros
 df_filtered = df[
     (df["Año-Mes"].isin(selected_meses)) &
-    (df[col_motorista].isin(selected_motoristas)) &
-    (df[col_completado].isin(selected_estados))
+    (df[col_motorista].astype(str).isin(selected_motoristas)) &
+    (df[col_completado].astype(str).isin(selected_estados))
 ]
 
 # Indicadores Principales (KPIs)
@@ -170,7 +168,6 @@ st.markdown("---")
 st.markdown("### 📋 REPORTE DE VIAJES PENDIENTES DE FACTURAR")
 st.markdown("Visualización ajustada con formato tabular limpio de columnas clave (# de Viaje, Fecha, Cliente, Valor de Flete, Observaciones y Tipo Viaje).")
 
-# Seleccionamos y ordenamos para mostrar el reporte idéntico al solicitado en la imagen si las columnas existen
 columnas_reporte = [c for c in ["# de Viaje", "Fecha", "Cliente", "Valor Flete", "Observaciones", "Tipo Viaje"] if c in df_filtered.columns]
 if not columnas_reporte:
     columnas_reporte = df_filtered.columns
