@@ -231,7 +231,7 @@ df_view.columns = [cols_visibles_map[c] for c in cols_visibles_keys]
 df_view.insert(0, "No.", range(1, len(df_view) + 1))
 st.dataframe(df_view, use_container_width=True)
 
-# --- GENERADOR DE REPORTE EXCEL CON DISEÑO PROFESIONAL (USANDO ITERROWS SEGURO) ---
+# --- GENERADOR DE REPORTE EXCEL CON DISEÑO PROFESIONAL (SINTAXIS CORREGIDA) ---
 def generar_excel_calpi(data_filtered):
     wb = Workbook()
     ws = wb.active
@@ -270,4 +270,13 @@ def generar_excel_calpi(data_filtered):
     ws.append(headers)
     
     header_row_idx = 4
-    for col_num in range(1
+    for col_num in range(1, len(headers) + 1):  # Paréntesis cerrado correctamente aquí
+        cell = ws.cell(row=header_row_idx, column=col_num)
+        cell.font = font_header
+        cell.fill = fill_header
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border_thin
+        
+    current_row = 5
+    for idx, (_, row) in enumerate(data_filtered.iterrows(), start=1):
+        v_viaje = row[col_viaje] if col_viaje in row else ""
