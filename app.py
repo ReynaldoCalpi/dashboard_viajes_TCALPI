@@ -48,6 +48,20 @@ col_fecha = next((c for c in df.columns if "fecha" in str(c).lower() or "date" i
 col_motorista = next((c for c in df.columns if "motorista" in str(c).lower() or "conductor" in str(c).lower()), df.columns[1])
 col_flete = next((c for c in df.columns if "flete" in str(c).lower() or "valor" in str(c).lower() or "monto" in str(c).lower()), None)
 
+# Limpieza y conversión obligatoria a numérica para evitar errores de tipo en las sumas
+if col_flete and col_flete in df.columns:
+    df[col_flete] = (
+        df[col_flete]
+        .astype(str)
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.strip()
+    )
+    df[col_flete] = pd.to_numeric(df[col_flete], errors="coerce").fillna(0.0)
+else:
+    df["Valor Flete"] = 0.0
+    col_flete = "Valor Flete"
+
 if col_fecha:
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors="coerce")
     df["Año-Mes"] = df[col_fecha].dt.to_period("M").astype(str)
@@ -73,8 +87,8 @@ st.markdown("### 📊 Indicadores Clave (KPIs)")
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
 total_viajes = len(df_filtered)
-total_flete = df_filtered[col_flete].sum() if col_flete else 0
-flete_promedio = df_filtered[col_flete].mean() if col_flete and total_viajes > 0 else 0
+total_flete = df_filtered[col_flete].sum() if col_flete else 0.0
+flete_promedio = df_filtered[col_flete].mean() if col_flete and total_viajes > 0 else 0.0
 num_motoristas = df_filtered[col_motorista].nunique()
 
 kpi1.metric("Total Viajes", f"{total_viajes:,}")
