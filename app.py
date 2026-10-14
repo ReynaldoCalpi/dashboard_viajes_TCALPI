@@ -231,7 +231,7 @@ df_view.columns = [cols_visibles_map[c] for c in cols_visibles_keys]
 df_view.insert(0, "No.", range(1, len(df_view) + 1))
 st.dataframe(df_view, use_container_width=True)
 
-# --- GENERADOR DE REPORTE EXCEL CON DISEÑO PROFESIONAL ---
+# --- GENERADOR DE REPORTE EXCEL CON DISEÑO PROFESIONAL (USANDO ITERROWS SEGURO) ---
 def generar_excel_calpi(data_filtered):
     wb = Workbook()
     ws = wb.active
@@ -270,105 +270,4 @@ def generar_excel_calpi(data_filtered):
     ws.append(headers)
     
     header_row_idx = 4
-    for col_num in range(1, len(headers) + 1):
-        cell = ws.cell(row=header_row_idx, column=col_num)
-        cell.font = font_header
-        cell.fill = fill_header
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = border_thin
-        
-    current_row = 5
-    for idx, row in enumerate(data_filtered.itertuples(), start=1):
-        # Mapeo seguro usando las variables de columnas detectadas
-        v_viaje = getattr(row, str(col_viaje).replace(" ", "_"), "")
-        v_fecha = getattr(row, str(col_fecha).replace(" ", "_"), "")
-        if pd.notna(v_fecha):
-            try:
-                v_fecha = pd.to_datetime(v_fecha).strftime("%d/%m/%Y")
-            except:
-                v_fecha = str(v_fecha)
-        else:
-            v_fecha = ""
-            
-        v_cliente = str(getattr(row, str(col_cliente).replace(" ", "_"), ""))
-        v_flete = float(getattr(row, str(col_flete).replace(" ", "_"), 0))
-        
-        v_obs = ""
-        if col_observaciones in data_filtered.columns:
-            v_obs = str(getattr(row, str(col_observaciones).replace(" ", "_"), ""))
-            if v_obs == "nan": v_obs = ""
-            
-        v_tipo = ""
-        if col_tipoviaje in data_filtered.columns:
-            v_tipo = str(getattr(row, str(col_tipoviaje).replace(" ", "_"), ""))
-            if v_tipo == "nan": v_tipo = ""
-        
-        row_data = [idx, v_viaje, v_fecha, v_cliente, v_flete, v_obs, v_tipo]
-        ws.append(row_data)
-        
-        for c_idx in range(1, len(row_data) + 1):
-            cell = ws.cell(row=current_row, column=c_idx)
-            cell.font = font_data
-            cell.border = border_thin
-            
-            if c_idx in [1, 2, 3]:
-                cell.alignment = Alignment(horizontal="center")
-            elif c_idx == 5:
-                cell.number_format = '"$"#,##0.00'
-                cell.alignment = Alignment(horizontal="right")
-            else:
-                cell.alignment = Alignment(horizontal="left")
-                
-        current_row += 1
-        
-    total_row_idx = current_row
-    ws.cell(row=total_row_idx, column=4, value="TOTAL PENDIENTE DE FACTURAR").font = font_total
-    ws.cell(row=total_row_idx, column=4).alignment = Alignment(horizontal="right")
-    
-    formula_flete = f"=SUM(E5:E{total_row_idx-1})" if total_row_idx > 5 else 0
-    cell_total = ws.cell(row=total_row_idx, column=5, value=formula_flete)
-    cell_total.font = font_total
-    cell_total.number_format = '"$"#,##0.00'
-    cell_total.alignment = Alignment(horizontal="right")
-    
-    for c_idx in range(1, len(headers) + 1):
-        cell = ws.cell(row=total_row_idx, column=c_idx)
-        cell.border = border_total
-        cell.fill = fill_total
-
-    for col in ws.columns:
-        max_len = 0
-        col_letter = get_column_letter(col[0].column)
-        for cell in col:
-            if cell.row > 2:
-                val_str = str(cell.value or '')
-                if len(val_str) > max_len:
-                    max_len = len(val_str)
-        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
-
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return output.getvalue()
-
-# --- BOTONES DE DESCARGA ---
-st.markdown("---")
-c_down1, c_down2 = st.columns(2)
-
-with c_down1:
-    csv_data = df_filtered[cols_visibles_keys].to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Descargar Reporte en CSV",
-        data=csv_data,
-        file_name="reporte_viajes_calpi.csv",
-        mime="text/csv"
-    )
-
-with c_down2:
-    excel_bytes = generar_excel_calpi(df_filtered)
-    st.download_button(
-        label="📥 Descargar Reporte Ejecutivo en Excel (.xlsx)",
-        data=excel_bytes,
-        file_name="Reporte_Viajes_Calpi.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    for col_num in range(1
