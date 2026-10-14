@@ -27,7 +27,7 @@ def cargar_datos_muestra():
         "Lugar Embarque": ["Bodega Central Apopa", "Terminal Acajutla", "Depósito Norte", "Planta Soyapango"] * 25,
         "Valor Flete": [350, 420, 500, 280, 600, 450, 380, 520, 310, 490] * 10,
         "Completado": ["Pendiente", "Completado", "Pendiente", "Completado", "Pendiente"] * 20,
-        "# de Viaje": range(83900, 84000),
+        "# de Viaje": list(range(83900, 84000)),
         "Cliente": ["TRANSPORTES CALPI, S.A. DE C.V.", "DERIVADOS DE MAIZ DE HONDURAS, S.A. DE C.V.", "DISTRIBUIDORA ZABLAH S.A. DE C.V.", "DISTRIBUIDORA CHAVARRIA, S.A. DE C.V", "HARISA, S.A. DE C.V."] * 20,
         "Observaciones": ["", "", "", "CON PROFORMA", ""] * 20,
         "Tipo Viaje": ["VIAJE LOCAL", "VIAJE INTERNACIONAL"] * 50
@@ -59,6 +59,17 @@ if col_fecha:
     df["Año-Mes"] = df[col_fecha].dt.to_period("M").astype(str)
 else:
     df["Año-Mes"] = "Sin Fecha"
+
+# Limpieza de la columna de flete para asegurar formato numérico (evita errores con símbolos $ o textos)
+if col_flete:
+    df[col_flete] = (
+        df[col_flete]
+        .astype(str)
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.strip()
+    )
+    df[col_flete] = pd.to_numeric(df[col_flete], errors="coerce").fillna(0)
 
 # Filtros Laterales
 st.sidebar.header("🔍 Filtros")
