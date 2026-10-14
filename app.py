@@ -11,11 +11,11 @@ st.set_page_config(
 )
 
 st.title("🚚 Dashboard de Control de Viajes y Fletes - Transportes Calpi")
-st.markdown("Análisis oficial de indicadores, filtrado por estado, motorista y ruta.")
+st.markdown("Análisis oficial de indicadores, filtrado flexible por estado, mes, motorista y ruta.")
 
 # Carga de archivo
 st.sidebar.header("📁 Archivo de Excel")
-uploaded_file = st.sidebar.file_uploader("Sube tu archivo 'CUADRO DE VIAJES...'", type=["xlsx", "xls", "csv"])
+uploaded_file = st.sidebar.file_uploader("Sube tu archivo de Excel", type=["xlsx", "xls", "csv"])
 
 # Función para cargar datos por defecto o el archivo subido
 @st.cache_data
@@ -25,7 +25,6 @@ def cargar_datos(file):
             if file.name.endswith(".csv"):
                 return pd.read_csv(file)
             else:
-                # Leemos la hoja principal ('1') del archivo de Calpi
                 xls = pd.ExcelFile(file)
                 sheet_name = '1' if '1' in xls.sheet_names else xls.sheet_names[0]
                 return pd.read_excel(file, sheet_name=sheet_name)
@@ -93,7 +92,7 @@ if col_flete in df.columns:
     )
     df[col_flete] = pd.to_numeric(df[col_flete], errors="coerce").fillna(0)
 
-# --- FILTROS LATERALES ---
+# --- FILTROS LATERALES MEJORADOS ---
 st.sidebar.header("🔍 Filtros Operativos")
 
 # 1. Filtro por Estado (Completado / Asignado / Anulado)
@@ -103,14 +102,28 @@ if col_estado in df.columns:
 else:
     selected_estados = []
 
-# 2. Filtro por Mes
+# 2. Filtro por Mes (con opción general)
 meses = sorted([str(x) for x in df["Año-Mes"].dropna().unique()])
-selected_meses = st.sidebar.multiselect("Filtrar por Mes:", meses, default=meses)
+st.sidebar.markdown("---")
+st.sidebar.subheader("📅 Filtro por Mes")
+todos_meses = st.sidebar.checkbox("Seleccionar Todos los Meses", value=True)
+if todos_meses:
+    selected_meses = meses
+    st.sidebar.multiselect("Meses activos:", meses, default=meses, disabled=True)
+else:
+    selected_meses = st.sidebar.multiselect("Elige los Meses:", meses, default=meses[:1] if meses else [])
 
-# 3. Filtro por Motorista
+# 3. Filtro por Motorista (con opción general)
 if col_motorista in df.columns:
     motoristas = sorted([str(x) for x in df[col_motorista].dropna().unique()])
-    selected_motoristas = st.sidebar.multiselect("Filtrar por Motorista:", motoristas, default=motoristas)
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("👨‍✈️ Filtro por Motorista")
+    todos_motoristas = st.sidebar.checkbox("Seleccionar Todos los Motoristas", value=True)
+    if todos_motoristas:
+        selected_motoristas = motoristas
+        st.sidebar.multiselect("Motoristas activos:", motoristas, default=motoristas, disabled=True)
+    else:
+        selected_motoristas = st.sidebar.multiselect("Elige los Motoristas:", motoristas, default=[])
 else:
     selected_motoristas = []
 
@@ -146,7 +159,7 @@ st.markdown("### 📈 Análisis Gráfico")
 col_g1, col_g2 = st.columns(2)
 
 with col_g1:
-    if col_fletename := col_flete:
+    if col_flete in df_filtered.columns:
         resumen_mes = df_filtered.groupby("Año-Mes")[col_flete].sum().reset_index()
         fig_mes = px.bar(
             resumen_mes, x="Año-Mes", y=col_flete,
@@ -157,7 +170,7 @@ with col_g1:
         st.plotly_chart(fig_mes, use_container_width=True)
 
 with col_g2:
-    if col_motorista in df_filtered.columns and col_flete:
+    if col_motorista in df_filtered.columns and col_flete in df_filtered.columns:
         resumen_moto = df_filtered.groupby(col_motorista)[col_flete].sum().reset_index().sort_values(by=col_flete, ascending=False).head(10)
         fig_moto = px.bar(
             resumen_moto, x=col_motorista, y=col_flete,
