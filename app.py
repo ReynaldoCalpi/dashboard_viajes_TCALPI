@@ -8,12 +8,12 @@ from openpyxl.utils import get_column_letter
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Dashboard de Control de Viajes y Fletes Pendientes de Facturar - Transportes Calpi",
+    page_title="Dashboard de Control de Viajes Pendientes de Facturar - Transportes Calpi",
     page_icon="🚚",
     layout="wide"
 )
 
-st.title("🚚 Dashboard de Control de Viajes y Fletes Pendientes de Facturar - Transportes Calpi")
+st.title("🚚 Dashboard de Control de Viajes Pendientes de Facturar - Transportes Calpi")
 st.markdown("Análisis oficial de indicadores, filtrado flexible por estado, mes, motorista y ruta.")
 
 # Carga de archivo
@@ -27,7 +27,7 @@ nombres_meses = {
     "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
 }
 
-# Función para cargar datos por defecto o el archivo subido
+# Función para cargar datos de manera precisa desde el Excel de Calpi
 @st.cache_data
 def cargar_datos(file):
     if file is not None:
@@ -36,17 +36,20 @@ def cargar_datos(file):
                 return pd.read_csv(file)
             else:
                 xls = pd.ExcelFile(file)
-                # Priorizamos la hoja 2 si existe y está estructurada, o la hoja 1
-                sheet_name = '2' if '2' in xls.sheet_names else ('1' if '1' in xls.sheet_names else xls.sheet_names[0])
-                if sheet_name == '2':
-                    return pd.read_excel(file, sheet_name=sheet_name, header=4)
+                # Si existe la hoja '2', leemos desde la fila de encabezados correcta (header=4)
+                if '2' in xls.sheet_names:
+                    df_sheet2 = pd.read_excel(file, sheet_name='2', header=4)
+                    # Aseguramos nombres de columnas estándar
+                    df_sheet2.columns = [str(c).strip() for c in df_sheet2.columns]
+                    if 'Total' in df_sheet2.columns:
+                        df_sheet2.rename(columns={'Total': 'Valor de Flete'}, inplace=True)
+                    return df_sheet2
                 else:
-                    return pd.read_excel(file, sheet_name=sheet_name)
+                    return pd.read_excel(file, sheet_name=xls.sheet_names[0])
         except Exception as e:
             st.error(f"Error al leer el archivo: {e}")
             return None
     else:
-        # Datos de muestra basados en la estructura real si no se sube archivo
         data = {
             "Viaje": [82373, 83637, 83884, 83889, 83915, 83920, 83927, 83932, 83941, 83944],
             "Completado": ["ASIGNADO", "COMPLETADO", "ASIGNADO", "COMPLETADO", "ASIGNADO", "COMPLETADO", "ASIGNADO", "COMPLETADO", "ASIGNADO", "COMPLETADO"],
@@ -86,7 +89,6 @@ col_estado = next((c for c in df.columns if "completado" in str(c).lower() or "e
 col_cliente = next((c for c in df.columns if "cliente" in str(c).lower()), "Cliente")
 col_fecha = next((c for c in df.columns if "fecha" in str(c).lower() and "descarga" not in str(c).lower()), "Fecha")
 
-# Búsqueda robusta de la columna de flete
 col_flete = None
 for c in df.columns:
     if any(k in str(c).lower() for k in ["flete", "valor", "monto", "total"]):
@@ -99,7 +101,7 @@ col_observaciones = next((c for c in df.columns if "observacion" in str(c).lower
 col_motorista = next((c for c in df.columns if "motorista" in str(c).lower() or "conductor" in str(c).lower()), "Motorista")
 col_tipoviaje = next((c for c in df.columns if "tipo viaje" in str(c).lower()), "Tipo Viaje")
 
-# Limpieza estricta e inmediata de la columna de flete a formato numérico real
+# Conversión estricta de fletes a valores numéricos
 if col_flete in df.columns:
     df[col_flete] = (
         df[col_flete]
@@ -129,7 +131,7 @@ else:
 # --- FILTROS LATERALES ---
 st.sidebar.header("🔍 Filtros Operativos")
 
-if col_estado in df.columns:
+if col_estado in df.columns and col_estado in df.columns:
     estados_disponibles = sorted([str(x) for x in df[col_estado].dropna().unique()])
     selected_estados = st.sidebar.multiselect("Filtrar por Estado:", estados_disponibles, default=estados_disponibles)
 else:
@@ -214,7 +216,7 @@ with col_g2:
 st.markdown("---")
 
 # --- REPORTE DETALLADO (Vista en Pantalla) ---
-st.markdown("### 📋 Reporte Detallado de Viajes")
+st.markdown("### 📋 Reporte Detallado de Viajes Pendientes de Facturar")
 
 cols_visibles_map = {
     col_viaje: "# de Viaje",
@@ -260,7 +262,7 @@ def generar_excel_calpi(data_filtered):
     )
 
     ws.append(["TRANSPORTES CALPI, S.A. DE C.V."])
-    ws.append(["REPORTE DE VIAJES PENDIENTES / FILTRADOS"])
+    ws.append(["REPORTE DE VIAJES PENDIENTES DE FACTURAR"])
     ws.append([])
     
     ws['A1'].font = font_titulo
