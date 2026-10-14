@@ -8,7 +8,7 @@ from openpyxl.utils import get_column_letter
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Dashboard de Control de Viajes y Fletes - Transportes Calpi",
+    page_title="Dashboard de Control de Viajes y Fletes Pendientes de Facturar - Transportes Calpi",
     page_icon="🚚",
     layout="wide"
 )
